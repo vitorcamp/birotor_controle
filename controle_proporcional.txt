@@ -1,0 +1,107 @@
+#include "mbed.h"
+#include "Servo.h"
+
+#define MOTOR_TEST_CONDITION 0.4f
+#define MOTOR_RESET_CONDITION 0.0f
+#define MOTOR_IDLE_CONDITION 0.05f
+
+#define MOTOR_CORRECT_FACTOR 0.28f//0.25f
+
+InterruptIn button(USER_BUTTON);
+
+Servo motorEsquerda(D3);
+Servo motorDireita(D5);
+
+AnalogIn encoder(PB_0);
+DigitalOut degrau(PA_10);
+DigitalOut ledPlaca(LED1);
+
+Serial pc(SERIAL_TX, SERIAL_RX);
+
+bool _btnFunction=0;
+float ref = 0.0;
+float erro = 0.0;
+float controlAction = 0.0;
+
+
+float KP=0.8f;
+
+void pressed()
+{
+   _btnFunction = !_btnFunction;
+}
+ 
+int main() {
+
+     button.fall(&pressed);
+     motorEsquerda.write(MOTOR_RESET_CONDITION);
+     motorDireita.write(MOTOR_RESET_CONDITION);
+     
+     pc.printf("step1\r\n");
+     pc.printf("%1.4f\r\n",encoder.read());
+     
+     wait_ms(1000);
+     motorEsquerda.write(MOTOR_IDLE_CONDITION);
+     motorDireita.write((1-MOTOR_CORRECT_FACTOR)*MOTOR_IDLE_CONDITION);
+     wait_ms(10000);
+     degrau = 0;
+     pc.printf("step2\r\n");
+     for(int i=0;i<10;i++)
+     {
+        ref += encoder.read();
+        pc.printf("%1.4f\r\n",encoder.read());
+        wait_ms(100);
+     }
+     ref = ref/10;
+     
+     while(1) 
+     {
+        degrau = 1;
+        erro = ref - encoder.read();
+        controlAction = -KP*erro;               
+        if(controlAction<-0.35f)
+        {
+            controlAction = -0.35f;
+        }
+        if(controlAction>0.55f)
+        {
+            controlAction = 0.55f;
+        } 
+        
+        if(_btnFunction)
+        {            
+            motorEsquerda.write(MOTOR_TEST_CONDITION + controlAction);
+            ledPlaca = 1;       
+        }
+        else
+        {
+            motorEsquerda.write(MOTOR_TEST_CONDITION);
+            motorDireita.write((1-MOTOR_CORRECT_FACTOR)*MOTOR_TEST_CONDITION);
+            ledPlaca = 0;            
+        }
+        
+        wait_ms(1);
+        degrau = 0;
+       // pc.printf("[U]%1.2f,[E]%1.2f\r\n",controlAction,erro);
+        
+         wait_ms(5);
+        
+       // wait_ms(5);
+        /* Malha aberta para caracterização
+        if(_btnFunction)
+        {
+            
+            motorEsquerda.write(MOTOR_TEST_CONDITION + 0.05);
+            degrau =1;
+        }
+        else
+        {
+            degrau = 0;
+            motorEsquerda.write(MOTOR_TEST_CONDITION);
+            motorDireita.write((1-MOTOR_CORRECT_FACTOR)*MOTOR_TEST_CONDITION);
+           
+        }
+        */
+      
+     }
+}
